@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "brainscan"
+version = "1.0.0"
+description = "CLI scanner for RYS (i,j) layer-duplication sweeps on HuggingFace models"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1",
+    "transformers>=4.40",
+    "torch>=2.2",
+    "pydantic>=2.0",
+    "numpy>=1.24",
+    "tqdm>=4.65",
+    "accelerate>=0.27",
+]
+
+[project.optional-dependencies]
+exllama = [
+    # ExLlamaV3 is not on PyPI — install manually from the repo.
+    # See: https://github.com/turboderp/exllamav2
+]
+datasets = [
+    # Only needed to regenerate the bundled probe datasets.
+    "datasets>=2.18",
+]
+
+[project.scripts]
+brainscan = "brainscan.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["brainscan"]
+artifacts = ["datasets/*"]
+
+[tool.hatch.build.targets.wheel.sources]
+"datasets" = "brainscan/datasets"

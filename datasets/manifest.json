@@ -1,0 +1,24 @@
+{
+  "files": {
+    "eq_16.json": {
+      "description": "16 EQ-Bench emotional intelligence scenarios from dnhkng/RYS",
+      "num_items": 16,
+      "source": "https://github.com/dnhkng/RYS",
+      "bundled": true
+    },
+    "pubmedqa_16.json": {
+      "description": "16 PubMedQA expert-annotated questions (7 yes, 5 no, 4 maybe)",
+      "num_items": 16,
+      "source": "qiaojin/PubMedQA (pqa_labeled split, seed=42)",
+      "bundled": false,
+      "create_with": "brainscan create-dataset --pubmedqa"
+    },
+    "pubmedqa_100.json": {
+      "description": "100 PubMedQA questions for post-sweep validation of top configs",
+      "num_items": 100,
+      "source": "qiaojin/PubMedQA (pqa_labeled split, seed=42)",
+      "bundled": false,
+      "create_with": "brainscan create-dataset --pubmedqa"
+    }
+  }
+}

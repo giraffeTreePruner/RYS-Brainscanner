@@ -1,12 +1,12 @@
-# BrainScan
+# LL-MRI
 
-BrainScan runs exhaustive layer-duplication sweeps on transformer models to measure how duplicating different layer ranges affects model performance. For every valid `(i, j)` pair in an N-layer model, it constructs a temporary layer path where layers `i` through `j−1` execute twice, scores the resulting model on two probe sets, and records the results in a structured JSON file.
+LL-MRI (Language Model — Model Relayering Imaging) runs exhaustive layer-duplication sweeps on transformer models to measure how duplicating different layer ranges affects model performance. For every valid `(i, j)` pair in an N-layer model, it constructs a temporary layer path where layers `i` through `j−1` execute twice, scores the resulting model on two probe sets, and records the results in a structured JSON file.
 
 ---
 
 ## What it does
 
-For a model with N layers, BrainScan evaluates N×(N+1)/2 + 1 configurations (including a no-duplication baseline). Each configuration is scored on:
+For a model with N layers, LL-MRI evaluates N×(N+1)/2 + 1 configurations (including a no-duplication baseline). Each configuration is scored on:
 
 - **PubMedQA** — biomedical yes/no/maybe question answering (accuracy)
 - **EQ-Bench** — emotional intelligence dialogues (MAE-based score with confidence weighting)
@@ -22,7 +22,7 @@ Outputs include per-configuration scores, deltas from baseline, top-10 rankings 
 - Pluggable inference backends (HuggingFace Transformers primary; ExLlama stub for future CUDA use)
 - Auto-detects layer paths for Llama, Qwen, Mistral, GPT-2, Falcon, MPT, and variants
 - Bundled 16-question probe sets for fast sweeps; 100-question PubMedQA set for post-sweep validation
-- Legacy RYS pickle import via `brainscan convert`
+- Legacy RYS pickle import via `llmri convert`
 - Output includes rankings and heatmap matrices for immediate analysis
 
 ---
@@ -32,8 +32,8 @@ Outputs include per-configuration scores, deltas from baseline, top-10 rankings 
 Requires Python 3.10+ and [uv](https://github.com/astral-sh/uv).
 
 ```bash
-git clone <repo-url>
-cd brainscan
+git clone https://github.com/giraffeTreePruner/LL-MRI-scanner.git
+cd LL-MRI-scanner
 uv sync
 ```
 
@@ -42,7 +42,7 @@ For GPU inference, ensure a CUDA-enabled PyTorch build is installed before runni
 To generate the bundled PubMedQA dataset from the HuggingFace hub (optional — already included):
 
 ```bash
-uv run brainscan create-dataset
+uv run llmri create-dataset --pubmedqa
 ```
 
 ---
@@ -52,7 +52,7 @@ uv run brainscan create-dataset
 ### Run a sweep
 
 ```bash
-uv run brainscan scan \
+uv run llmri scan \
   --model Qwen/Qwen2.5-3B-Instruct \
   --output model_scans/my-scan.json
 ```
@@ -74,13 +74,13 @@ Options:
 ### Resume an interrupted scan
 
 ```bash
-uv run brainscan scan --model Qwen/Qwen2.5-3B-Instruct --output scan.json --resume
+uv run llmri scan --model Qwen/Qwen2.5-3B-Instruct --output scan.json --resume
 ```
 
 ### Convert a legacy RYS pickle file
 
 ```bash
-uv run brainscan convert rys_results.pkl --output scan.json --probe pubmedqa
+uv run llmri convert --pkl-pubmedqa rys_pubmedqa.pkl --model-name Qwen/Qwen2.5-3B-Instruct --num-layers 28
 ```
 
 ---
@@ -88,8 +88,8 @@ uv run brainscan convert rys_results.pkl --output scan.json --probe pubmedqa
 ## Directory structure
 
 ```
-brainscan/
-├── brainscan/                  # Main package
+LL-MRI-scanner/
+├── llmri/                      # Main package
 │   ├── cli.py                  # Click CLI entry points
 │   ├── scanner.py              # Sweep orchestrator
 │   ├── relayer.py              # Layer path construction and model patching
@@ -108,7 +108,8 @@ brainscan/
 │   └── pubmedqa_100.json       # 100 PubMedQA questions (validation)
 ├── model_scans/                # Pre-computed scan outputs
 │   ├── Qwen2-5-Instruct-3B.json
-│   └── llama3-2-Instruct-3B.json
+│   ├── llama3-2-Instruct-3B.json
+│   └── llama3-1_8B_instruct.json
 └── pyproject.toml
 ```
 
@@ -120,7 +121,7 @@ Each scan produces a single JSON file conforming to the following structure:
 
 ```jsonc
 {
-  "brainscan_version": "1.0.0",
+  "llmri_version": "1.0.0",
   "scan_metadata": {
     "model_name": "Qwen/Qwen2.5-3B-Instruct",
     "num_layers": 36,
@@ -199,9 +200,16 @@ Config `(i, j)` produces path `[0 .. j-1] + [i .. N-1]`, so layers `i` through `
 
 ## Pre-computed scans
 
-Two reference scans are included in `model_scans/`:
+Three reference scans are included in `model_scans/`:
 
 | File | Model | Configs |
 |------|-------|---------|
 | `Qwen2-5-Instruct-3B.json` | Qwen/Qwen2.5-3B-Instruct | 667 |
-| `llama3-2-Instruct-3B.json` | meta-llama/Llama-3.2-3B-Instruct | 667 |
+| `llama3-2-Instruct-3B.json` | meta-llama/Llama-3.2-3B-Instruct | 407 |
+| `llama3-1_8B_instruct.json` | meta-llama/Llama-3.1-8B-Instruct | 529 |
+
+---
+
+## Based on
+
+[dnhkng/RYS](https://github.com/dnhkng/RYS) — the original Repeat Yourself Smarter technique and sweep methodology.

@@ -1,5 +1,4 @@
 {
-  "brainscan_version": "1.0.0",
   "scan_metadata": {
     "model_name": "Qwen/Qwen2.5-3B-Instruct",
     "model_type": "qwen2",
@@ -15,9 +14,9 @@
     "scan_duration_seconds": 170606.8,
     "total_configs": 667,
     "completed_configs": 667,
-    "pubmedqa_dataset": "/Users/giraffe/Desktop/llm_scanner/brainscan/datasets/pubmedqa_16.json",
+    "pubmedqa_dataset": "/Users/giraffe/Desktop/llm_scanner/llmri/datasets/pubmedqa_16.json",
     "pubmedqa_dataset_size": 16,
-    "eq_dataset": "/Users/giraffe/Desktop/llm_scanner/brainscan/datasets/eq_16.json",
+    "eq_dataset": "/Users/giraffe/Desktop/llm_scanner/llmri/datasets/eq_16.json",
     "eq_dataset_size": 16,
     "max_new_tokens": 16
   },
@@ -58061,5 +58060,6 @@
         ]
       ]
     }
-  }
+  },
+  "llmri_version": "1.0.0"
 }

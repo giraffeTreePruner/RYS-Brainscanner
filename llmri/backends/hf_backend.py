@@ -1,7 +1,7 @@
 """HuggingFace Transformers backend.
 
 Works on Mac (MPS), CPU, and CUDA.  Loads the model once and re-uses it across
-all (i,j) configs by temporarily relayering via brainscan.relayer.
+all (i,j) configs by temporarily relayering via llmri.relayer.
 
 Generation is intentionally minimal — we only need 1-16 new tokens per probe:
   - PubMedQA answers: 1-3 tokens ("yes", "no", "maybe")
@@ -22,7 +22,7 @@ from typing import Any
 import transformers
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
-from brainscan.relayer import relayer_model, restore_model
+from llmri.relayer import relayer_model, restore_model
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def load_model(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    from brainscan.relayer import get_num_layers
+    from llmri.relayer import get_num_layers
     logger.info(
         f"Loaded {model.config.model_type} with "
         f"{get_num_layers(model.config)} layers."
@@ -257,8 +257,8 @@ def evaluate_config(
     active_probes controls which probe sets to run: {"pubmedqa", "eq"}.
     Returns a dict with keys "pubmedqa_score" and/or "eq_score".
     """
-    from brainscan.scoring.pubmedqa_scorer import score_pubmedqa_batch
-    from brainscan.scoring.eq_scorer import score_eq_batch
+    from llmri.scoring.pubmedqa_scorer import score_pubmedqa_batch
+    from llmri.scoring.eq_scorer import score_eq_batch
 
     # Relayer — returns (layers, config_state_dict) now
     original_layers, original_config_state = relayer_model(model, i, j, num_layers)

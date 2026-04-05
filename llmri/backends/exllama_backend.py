@@ -41,7 +41,7 @@ def load_model(model_path: str, device: str):  # type: ignore[return]
     raise NotImplementedError(
         "The ExLlama backend is not yet implemented.  "
         "Use --backend hf for now.  "
-        "See brainscan/backends/exllama_backend.py for implementation notes."
+        "See llmri/backends/exllama_backend.py for implementation notes."
     )
 
 

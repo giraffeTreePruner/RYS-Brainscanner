@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "brainscan"
+name = "llmri"
 version = "1.0.0"
-description = "CLI scanner for RYS (i,j) layer-duplication sweeps on HuggingFace models"
+description = "LL-MRI: CLI scanner for RYS (i,j) layer-duplication sweeps on HuggingFace models"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.1",
@@ -28,11 +28,11 @@ datasets = [
 ]
 
 [project.scripts]
-brainscan = "brainscan.cli:cli"
+llmri = "llmri.cli:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["brainscan"]
+packages = ["llmri"]
 artifacts = ["datasets/*"]
 
 [tool.hatch.build.targets.wheel.sources]
-"datasets" = "brainscan/datasets"
+"datasets" = "llmri/datasets"

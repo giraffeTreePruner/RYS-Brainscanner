@@ -10,8 +10,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from brainscan.relayer import build_layer_path, get_duplicated_layers, generate_all_configs, get_num_layers
-from brainscan.utils import (
+from llmri.relayer import build_layer_path, get_duplicated_layers, generate_all_configs, get_num_layers
+from llmri.utils import (
     utc_now_iso,
     save_checkpoint,
     load_checkpoint,
@@ -53,8 +53,8 @@ def run_scan(
     # -----------------------------------------------------------------
     # 1. Load datasets
     # -----------------------------------------------------------------
-    from brainscan.scoring.pubmedqa_scorer import load_pubmedqa_dataset
-    from brainscan.scoring.eq_scorer import load_eq_dataset
+    from llmri.scoring.pubmedqa_scorer import load_pubmedqa_dataset
+    from llmri.scoring.eq_scorer import load_eq_dataset
 
     pubmedqa_probes: list[dict] = []
     eq_probes: list[dict] = []
@@ -71,14 +71,14 @@ def run_scan(
     # 2. Load model config (weights not needed yet for architecture info)
     # -----------------------------------------------------------------
     if backend == "hf":
-        from brainscan.backends.hf_backend import load_model_config, load_model, detect_device
+        from llmri.backends.hf_backend import load_model_config, load_model, detect_device
         if device == "auto":
             device = detect_device()
         model_cfg = load_model_config(
             model_path, cache_dir=cache_dir, local_files_only=offline
         )
     elif backend == "exllama":
-        from brainscan.backends.exllama_backend import load_model  # type: ignore
+        from llmri.backends.exllama_backend import load_model  # type: ignore
         raise SystemExit("ExLlama backend not yet implemented. Use --backend hf.")
     else:
         raise ValueError(f"Unknown backend: {backend!r}")
@@ -129,7 +129,7 @@ def run_scan(
     # -----------------------------------------------------------------
     # 6. Run baseline (0,0) — needed to compute deltas
     # -----------------------------------------------------------------
-    from brainscan.backends.hf_backend import evaluate_config
+    from llmri.backends.hf_backend import evaluate_config
 
     baseline_scores: dict[str, float] | None = None
 
@@ -212,7 +212,7 @@ def run_scan(
     all_results: list[dict[str, Any]] = list(existing_results)
     done_count = len(completed)
 
-    pbar = make_progress_bar(total=total_configs, desc="BrainScan")
+    pbar = make_progress_bar(total=total_configs, desc="LL-MRI")
     pbar.update(done_count)
 
     for cfg_idx, (i, j) in enumerate(pending_configs):
@@ -326,7 +326,7 @@ def _write_output(
     heatmaps = build_heatmap_matrices(all_results, num_layers) if final else None
 
     output: dict[str, Any] = {
-        "brainscan_version": "1.0.0",
+        "llmri_version": "1.0.0",
         "scan_metadata": metadata,
         "baseline": baseline_entry,
         "results": all_results,

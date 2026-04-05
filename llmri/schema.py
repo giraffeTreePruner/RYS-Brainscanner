@@ -1,4 +1,4 @@
-"""Pydantic models for the BrainScan output JSON schema."""
+"""Pydantic models for the LL-MRI output JSON schema."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class HeatmapMatrices(BaseModel):
 
 
 class ScanResults(BaseModel):
-    brainscan_version: str = "1.0.0"
+    llmri_version: str = "1.0.0"
     scan_metadata: ScanMetadata
     baseline: Optional[BaselineResult] = None
     results: list[ConfigResult] = Field(default_factory=list)

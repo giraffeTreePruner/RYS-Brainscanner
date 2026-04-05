@@ -11,14 +11,14 @@
       "num_items": 16,
       "source": "qiaojin/PubMedQA (pqa_labeled split, seed=42)",
       "bundled": false,
-      "create_with": "brainscan create-dataset --pubmedqa"
+      "create_with": "llmri create-dataset --pubmedqa"
     },
     "pubmedqa_100.json": {
       "description": "100 PubMedQA questions for post-sweep validation of top configs",
       "num_items": 100,
       "source": "qiaojin/PubMedQA (pqa_labeled split, seed=42)",
       "bundled": false,
-      "create_with": "brainscan create-dataset --pubmedqa"
+      "create_with": "llmri create-dataset --pubmedqa"
     }
   }
 }

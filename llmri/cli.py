@@ -1,8 +1,9 @@
-"""BrainScan CLI entry point.
+"""LL-MRI CLI entry point.
 
 Commands:
-  brainscan scan      — run the (i,j) sweep on a model
-  brainscan convert   — convert RYS pickle files to BrainScan JSON
+  llmri scan           — run the (i,j) sweep on a model
+  llmri convert        — convert RYS pickle files to LL-MRI JSON
+  llmri create-dataset — download and build the bundled probe datasets
 """
 
 from __future__ import annotations
@@ -24,11 +25,11 @@ _DEFAULT_EQ = _DATASETS_DIR / "eq_16.json"
 
 @click.group()
 def cli() -> None:
-    """BrainScan — RYS layer-duplication sweep tool."""
+    """LL-MRI — RYS layer-duplication sweep tool."""
 
 
 # ---------------------------------------------------------------------------
-# brainscan scan
+# llmri scan
 # ---------------------------------------------------------------------------
 
 @cli.command()
@@ -112,18 +113,18 @@ def cli() -> None:
     "--cache-dir",
     default=None,
     type=click.Path(file_okay=False),
-    envvar="BRAINSCAN_CACHE_DIR",
+    envvar="LLMRI_CACHE_DIR",
     help=(
         "Directory to cache downloaded model files. "
         "Defaults to the standard HuggingFace hub cache (~/.cache/huggingface/hub/). "
-        "Can also be set via the BRAINSCAN_CACHE_DIR environment variable."
+        "Can also be set via the LLMRI_CACHE_DIR environment variable."
     ),
 )
 @click.option(
     "--offline",
     is_flag=True,
     default=False,
-    envvar="BRAINSCAN_OFFLINE",
+    envvar="LLMRI_OFFLINE",
     help=(
         "Run in offline mode: never hit the network, use only locally cached model files. "
         "Raises an error if the model has not been downloaded yet. "
@@ -153,28 +154,28 @@ def scan(
 ) -> None:
     """Run the RYS (i,j) layer-duplication sweep on MODEL.
 
-    Produces a single JSON file at --output that the BrainScan Viewer can
+    Produces a single JSON file at --output that the LL-MRI Viewer can
     consume to render interactive heatmaps.
 
     Examples:
 
     \b
     # Minimal — scan a HuggingFace model (downloads to HF cache on first run)
-    brainscan scan --model Qwen/Qwen2.5-3B-Instruct
+    llmri scan --model Qwen/Qwen2.5-3B-Instruct
 
     \b
     # Resume an interrupted scan without re-downloading
-    brainscan scan --model Qwen/Qwen2.5-3B-Instruct --output scan.json --resume --offline
+    llmri scan --model Qwen/Qwen2.5-3B-Instruct --output scan.json --resume --offline
 
     \b
     # Use a custom cache directory
-    brainscan scan --model Qwen/Qwen2.5-3B-Instruct --cache-dir ~/models
+    llmri scan --model Qwen/Qwen2.5-3B-Instruct --cache-dir ~/models
 
     \b
     # PubMedQA probes only, force MPS device
-    brainscan scan --model /path/to/model --probes pubmedqa --device mps
+    llmri scan --model /path/to/model --probes pubmedqa --device mps
     """
-    from brainscan.utils import setup_logging
+    from llmri.utils import setup_logging
     setup_logging(verbose=verbose)
 
     # Parse probe set
@@ -195,7 +196,7 @@ def scan(
     if "pubmedqa" in active_probes and not Path(pubmedqa_path).exists():
         raise click.UsageError(
             f"PubMedQA dataset not found at {pubmedqa_path!r}.\n"
-            "Run: brainscan create-dataset --pubmedqa\n"
+            "Run: llmri create-dataset --pubmedqa\n"
             "Or supply a custom path with --pubmedqa-dataset."
         )
     if "eq" in active_probes and not Path(eq_path).exists():
@@ -204,7 +205,7 @@ def scan(
             "Make sure datasets/eq_16.json is present in the package."
         )
 
-    from brainscan.scanner import run_scan
+    from llmri.scanner import run_scan
 
     try:
         run_scan(
@@ -228,7 +229,7 @@ def scan(
 
 
 # ---------------------------------------------------------------------------
-# brainscan convert
+# llmri convert
 # ---------------------------------------------------------------------------
 
 @cli.command()
@@ -259,7 +260,7 @@ def scan(
     "--output", "-o",
     default="scan_results.json",
     show_default=True,
-    help="Path to write the converted BrainScan JSON.",
+    help="Path to write the converted LL-MRI JSON.",
 )
 def convert(
     pkl_pubmedqa: str | None,
@@ -268,7 +269,7 @@ def convert(
     num_layers: int,
     output: str,
 ) -> None:
-    """Convert RYS repo pickle files to BrainScan JSON format.
+    """Convert RYS repo pickle files to LL-MRI JSON format.
 
     The RYS repo outputs separate .pkl files for each probe type.  Use this
     command to combine them into a single scan_results.json for the viewer.
@@ -280,8 +281,8 @@ def convert(
     """
     import pickle
     import json
-    from brainscan.relayer import build_layer_path, get_duplicated_layers
-    from brainscan.utils import build_heatmap_matrices, compute_rankings, save_checkpoint, utc_now_iso
+    from llmri.relayer import build_layer_path, get_duplicated_layers
+    from llmri.utils import build_heatmap_matrices, compute_rankings, save_checkpoint, utc_now_iso
 
     if not pkl_pubmedqa and not pkl_eq:
         raise click.UsageError("Provide at least one of --pkl-pubmedqa or --pkl-eq.")
@@ -373,7 +374,7 @@ def convert(
     }
 
     out = {
-        "brainscan_version": "1.0.0",
+        "llmri_version": "1.0.0",
         "scan_metadata": metadata,
         "baseline": baseline_entry,
         "results": results,
@@ -386,7 +387,7 @@ def convert(
 
 
 # ---------------------------------------------------------------------------
-# brainscan create-dataset
+# llmri create-dataset
 # ---------------------------------------------------------------------------
 
 @cli.command("create-dataset")
@@ -412,7 +413,7 @@ def convert(
 def create_dataset(create_pubmedqa: bool, output_dir: str, seed: int) -> None:
     """Download and create the bundled probe dataset files.
 
-    Requires the 'datasets' extra: pip install brainscan[datasets]
+    Requires the 'datasets' extra: pip install llmri[datasets]
 
     This only needs to be run once after installation.  The eq_16.json file
     is already bundled; only pubmedqa_16.json needs to be downloaded.
@@ -426,7 +427,7 @@ def create_dataset(create_pubmedqa: bool, output_dir: str, seed: int) -> None:
     except ImportError:
         raise click.UsageError(
             "The 'datasets' package is required. Install it with:\n"
-            "  pip install brainscan[datasets]\n"
+            "  pip install llmri[datasets]\n"
             "  or: pip install datasets"
         )
 

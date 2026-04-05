@@ -14,9 +14,12 @@ for relayering.
 from __future__ import annotations
 
 import logging
+import sys
+import types
 import torch
 from typing import Any
 
+import transformers
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from brainscan.relayer import relayer_model, restore_model
@@ -66,14 +69,15 @@ def load_model(
 
     dtype = torch.float32 if device == "cpu" else torch.float16
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
+    from_pretrained_kwargs = dict(
         dtype=dtype,
         device_map=device,
         trust_remote_code=True,
         cache_dir=cache_dir,
         local_files_only=local_files_only,
     )
+
+    model = _load_causal_lm(model_path, **from_pretrained_kwargs)
     model.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -85,11 +89,94 @@ def load_model(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    from brainscan.relayer import get_num_layers
     logger.info(
         f"Loaded {model.config.model_type} with "
-        f"{model.config.num_hidden_layers} layers."
+        f"{get_num_layers(model.config)} layers."
     )
     return model, tokenizer
+
+
+def _stub_triton_if_missing() -> None:
+    """Install a no-op triton stub if triton is not available.
+
+    Some models (e.g. Mistral-Small-3.1 / Ministral-3-14B) ship with FP8
+    quantization in their saved config.  transformers' finegrained_fp8.py
+    imports `triton` at *module level*, before it checks whether the current
+    device actually supports FP8.  On CPU/MPS machines transformers correctly
+    falls back to dequantizing to bf16 — but it never gets that far because the
+    bare `import triton` raises ModuleNotFoundError.
+
+    Installing a stub lets the import succeed.  The actual triton kernels are
+    never called on CPU/MPS (transformers gates them on device availability),
+    so the stub never needs to do anything.
+    """
+    if "triton" in sys.modules:
+        return
+    try:
+        import triton  # noqa: F401
+    except ImportError:
+        stub = types.ModuleType("triton")
+        # triton.language is also imported by some integrations
+        lang_stub = types.ModuleType("triton.language")
+        stub.language = lang_stub
+        sys.modules["triton"] = stub
+        sys.modules["triton.language"] = lang_stub
+        logger.info(
+            "triton is not installed; inserted a no-op stub so FP8 model configs "
+            "can load (transformers will dequantize to bf16/fp16 automatically)."
+        )
+
+
+def _load_causal_lm(model_path: str, **kwargs: Any) -> Any:
+    """Load a causal LM, falling back to architecture-class loading if needed.
+
+    AutoModelForCausalLM fails with a ValueError for models whose Config class
+    exists in transformers but isn't registered in the Auto factory (e.g.
+    Mistral3Config in some transformers releases).  In that case we read
+    config.architectures and instantiate the class directly.
+
+    This covers the case where `transformers.Mistral3ForCausalLM` exists but
+    the auto-registry mapping is missing — a known issue with Ministral-3 on
+    some transformers versions.
+    """
+    # Must happen before any transformers import of finegrained_fp8
+    _stub_triton_if_missing()
+
+    unrecognized_exc: Exception | None = None
+    try:
+        return AutoModelForCausalLM.from_pretrained(model_path, **kwargs)
+    except ValueError as exc:
+        if "Unrecognized configuration class" not in str(exc):
+            raise
+        unrecognized_exc = exc
+
+    # Fallback: load via the architecture class listed in config.architectures
+    cfg = AutoConfig.from_pretrained(
+        model_path,
+        trust_remote_code=kwargs.get("trust_remote_code", True),
+        cache_dir=kwargs.get("cache_dir"),
+        local_files_only=kwargs.get("local_files_only", False),
+    )
+    architectures: list[str] = getattr(cfg, "architectures", []) or []
+
+    for arch_name in architectures:
+        cls = getattr(transformers, arch_name, None)
+        if cls is not None:
+            logger.info(
+                f"AutoModelForCausalLM does not recognise this config; "
+                f"loading directly as {arch_name}."
+            )
+            return cls.from_pretrained(model_path, **kwargs)
+
+    # Give a clear error message rather than the cryptic Auto one
+    raise RuntimeError(
+        f"Cannot load {model_path!r}: AutoModelForCausalLM does not support "
+        f"{type(cfg).__name__}, and no fallback class found in "
+        f"config.architectures={architectures}.\n"
+        f"Try: pip install --upgrade transformers\n"
+        f"Original error: {unrecognized_exc}"
+    ) from unrecognized_exc
 
 
 def load_model_config(

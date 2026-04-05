@@ -135,11 +135,12 @@ def get_num_layers(config: Any) -> int:
 # Ordered candidate paths to the transformer layer list in the loaded model.
 # Each entry is a dotted attribute path.  The first one that resolves wins.
 _LAYER_PATHS = [
-    "model.layers",             # Qwen2, Llama 2/3, Mistral, Gemma, Phi-3
-    "language_model.model.layers",  # LLaVA-style multimodal
-    "model.model.layers",       # some double-wrapped configs
-    "transformer.h",            # GPT-2 / old Falcon
-    "transformer.blocks",       # MPT
+    "model.layers",                     # Qwen2, Llama 2/3, Mistral, Gemma, Phi-3
+    "model.language_model.model.layers",# Mistral3ForConditionalGeneration (VLM)
+    "language_model.model.layers",      # LLaVA-style multimodal
+    "model.model.layers",               # some double-wrapped configs
+    "transformer.h",                    # GPT-2 / old Falcon
+    "transformer.blocks",               # MPT
 ]
 
 
@@ -241,26 +242,41 @@ def relayer_model(
     layer_path = _detect_layer_path(model)
     original_layers = _get_layers(model, layer_path)
 
-    # Find which config attribute holds the layer count for this model family
+    # Find which config holds the layer count (top-level or nested text_config).
+    # VLMs (e.g. Mistral3ForConditionalGeneration) store the LLM config under
+    # model.config.text_config rather than at the top level.
+    layer_count_cfg = model.config
     layer_count_attr = None
     for attr in _LAYER_COUNT_ATTRS:
         if getattr(model.config, attr, None) is not None:
             layer_count_attr = attr
             break
+    if layer_count_attr is None:
+        text_cfg = getattr(model.config, "text_config", None)
+        if text_cfg is not None:
+            for attr in _LAYER_COUNT_ATTRS:
+                if getattr(text_cfg, attr, None) is not None:
+                    layer_count_cfg = text_cfg
+                    layer_count_attr = attr
+                    break
 
     # State dict: underscore-prefixed keys are internal bookkeeping,
-    # all other keys are config attributes to restore verbatim.
+    # all other keys are (config_obj, original_value) pairs to restore.
     state: dict[str, Any] = {
         "_layer_path": layer_path,
-        "_layer_count_attr": layer_count_attr,
+        "_patches": [],  # list of (config_obj, attr, original_value)
     }
     if layer_count_attr is not None:
-        state[layer_count_attr] = getattr(model.config, layer_count_attr)
+        state["_patches"].append(
+            (layer_count_cfg, layer_count_attr, getattr(layer_count_cfg, layer_count_attr))
+        )
 
     # layer_types: Qwen2 4.50+ per-layer attention type list — must be remapped
     layer_types = getattr(model.config, "layer_types", None)
     if layer_types is not None:
-        state["layer_types"] = list(layer_types)
+        state["_patches"].append(
+            (model.config, "layer_types", list(layer_types))
+        )
 
     path = build_layer_path(i, j, num_layers)
 
@@ -272,11 +288,14 @@ def relayer_model(
 
     _set_layers(model, layer_path, nn.ModuleList(new_layer_list))
 
-    if layer_count_attr is not None:
-        setattr(model.config, layer_count_attr, len(path))
-
-    if layer_types is not None:
-        model.config.layer_types = [layer_types[idx] for idx in path]
+    # Apply config patches for the new path length
+    for cfg_obj, attr, _original_val in state["_patches"]:
+        if attr == "layer_types":
+            # Remap per-position using the original layer index for each path slot
+            setattr(cfg_obj, attr, [_original_val[idx] for idx in path])
+        else:
+            # Layer count attribute — set to new path length
+            setattr(cfg_obj, attr, len(path))
 
     return original_layers, state
 
@@ -288,17 +307,16 @@ def restore_model(
 ) -> None:
     """Restore the model to its original layer configuration.
 
-    Restores all config attributes saved by relayer_model, then reinstates
-    the original ModuleList and resets layer_idx on each original layer object.
+    Restores all patched config attributes, reinstates the original ModuleList,
+    and resets layer_idx on each original layer object.
 
     state must be the dict returned by relayer_model — do not modify it.
     """
     layer_path = state["_layer_path"]
 
-    # Restore config attrs (skip internal underscore keys)
-    for attr, val in state.items():
-        if not attr.startswith("_"):
-            setattr(model.config, attr, val)
+    # Restore all patched config attributes
+    for cfg_obj, attr, original_val in state["_patches"]:
+        setattr(cfg_obj, attr, original_val)
 
     # Restore original layer_idx values on the original layer objects
     for idx, layer in enumerate(original_layers):
